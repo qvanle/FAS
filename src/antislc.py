@@ -25,6 +25,7 @@ class FAS:
 
         for i in range(len(dts)): 
             srcimg, label, path = dts[i]
+            print("--> Testing: " + path)
             boxes, scores, classids, kpts = self.face_detector.detect(srcimg)
             self.blobs.append((path, boxes, scores, classids, kpts))
             
