@@ -30,7 +30,7 @@ class FAS:
         self.criterion = None 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.epoch = 10
-
+        self.maskpath = maskDetector
         if maskDetector == "none" or (not os.path.isfile(maskDetector)): 
             print("Creating new model")
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
@@ -196,7 +196,7 @@ class FAS:
                 print("-->Correct: " + str(classCorrect[i]) + " / Total: " + str(classTotal[i]))
                 print("-->Accuracy: " + str(classCorrect[i]/classTotal[i]))
                 print("x----x----x")
-            
+            self.export(self.maskpath)
         
         timeEnd = datetime.now()
         print("Training done: " + str(timeEnd))
