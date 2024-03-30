@@ -5,6 +5,7 @@ from datetime import datetime
 import numpy as np 
 import matplotlib.pyplot as pyplot 
 from face_detector import YOLOv8_face
+from PIL import Image
 
 import torch 
 import torch.nn as nn
@@ -15,7 +16,7 @@ from transformers import ViTForImageClassification
 from transformers import ViTFeatureExtractor
 from torchvision import transforms
 from tqdm import tqdm 
-
+import timm
 class FAS: 
     def __init__(self, faceDectector, maskDetector, confThreshold, nmsThreshold):  
 
@@ -28,13 +29,13 @@ class FAS:
         self.epoch = 10
 
         if maskDetector == "none": 
-            self.maskDetector = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224-in21k")
+            self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
             self.maskDetector.to(self.device)
             self.optimizer = optim.Adam(self.maskDetector.parameters(), lr=3e-5)
             self.criterion = nn.CrossEntropyLoss()
         else: 
             # load from maskDetector, which is a path 
-            self.maskDetector = ViTForImageClassification.from_pretrained(maskDetector)
+            self.maskDetector = timm.create_model(maskDetector)
             self.maskDetector.to(self.device)
             self.optimizer = optim.Adam(self.maskDetector.parameters(), lr=3e-5)
             self.criterion = nn.CrossEntropyLoss()
@@ -48,9 +49,8 @@ class FAS:
                 f.write(": ")
                 f.write(str(self.log[i]))
                 f.write("\n")
-    def exportModel(self, path = "src/weights/mask_detector.onnx"): 
-        # save as format onnx 
-        torch.onnx.export(self.maskDetector, torch.randn(1, 3, 224, 224), path) 
+    def exportModel(self, path = "src/weights/mask_detector.pth"): 
+        torch.save(self.maskDetector.state_dict(), path)
 
     def validating(self, dts): 
         self.log = {}
@@ -65,11 +65,7 @@ class FAS:
         pass
     def training(self, dts):
         self.log = {}
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
-
+        
         timeStart = datetime.now() 
 
         print("Starting training: " + str(timeStart)) 
@@ -83,35 +79,45 @@ class FAS:
             
             faceFailed = 0
 
-            for i in range(len(dts)): 
+            for i in tqdm(range(len(dts)), total = len(dts), desc = "Epoch " + str(epoch) + " "): 
+                
                 srcimg, label, path = dts[i]
-                print("--> Training: " + path) 
 
                 blobs = self.face_detector.detect(srcimg)
                 boxes, scores, classids, kpts = blobs
+
+
                 #print("Found " + str(len(boxes)) + " faces")
                 for i in range(len(boxes)): 
                     x1, y1, x2, y2 = boxes[i]
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                    face = srcimg[y1:y2, x1:x2]
-                    if(face.shape[0] <= 1 or face.shape[1] <= 1):
-                        faceFailed += 1
-                        continue
+                    # convert cv2 to PIL 
                     
-                    face = torch.from_numpy(face.transpose(2, 0, 1)).float().to(self.device)   
-                    self.optimizer.zero_grad() 
+                    # if face is invalid, skip 
+
+                    face = srcimg[y1:y2, x1:x2]
+                    
+                    if(face.shape[0] <= 1 or face.shape[1] <= 1):
+                        continue
+                    face = cv2.resize(face, (224, 224))
+                    face = Image.fromarray(face)
+                    face = transforms.ToTensor()(face).unsqueeze(0)
+                    face = face.to(self.device)
+
+                    self.optimizer.zero_grad()
                     outputs = self.maskDetector(face)
-                    loss = self.criterion(outputs, torch.tensor([label])) 
+                    loss = self.criterion(outputs, torch.tensor([label]).to(self.device))
                     loss.backward()
-                    optimizer.step()
+                    self.optimizer.step()
+
+
 
                     running_loss += loss.item()
                     _, predicted = torch.max(outputs, 1)
                     total_predictions += 1
                     if(predicted == label):
                         correct_predictions += 1
-                print("")
             print("Epoch: " + str(epoch) + " Loss: " + str(running_loss) + " Accuracy: " + str(correct_predictions/total_predictions))
             print("Failed: " + str(faceFailed) + " faces")
             
@@ -123,9 +129,6 @@ class FAS:
         self.log['timeStart'] = timeStart
         self.log['elapse'] = timeEnd - timeStart
         self.log['total'] = len(dts)
-        
-        exportModel()
-
 
 
     def testing(self, dts):
