@@ -29,9 +29,10 @@ class FAS:
         self.optimizer = None 
         self.criterion = None 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.epoch = 3
+        self.epoch = 10
 
         if maskDetector == "none": 
+            print("Creating new model")
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
             self.maskDetector.to(self.device)
             self.optimizer = optim.Adam(self.maskDetector.parameters(), lr=3e-5)
@@ -39,6 +40,7 @@ class FAS:
 
             self.exportModel()
         else: 
+            print("Loading model from: " + maskDetector)
             # load from maskDetector, which is a path 
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
             state_dick = torch.load(maskDetector)
@@ -54,32 +56,37 @@ class FAS:
         torch.save(self.maskDetector.state_dict(), path)
 
     def validating(self, dts): 
-
-        timeStart = datetime.now()
-
-        print("Starting validation: " + str(timeStart)) 
-
+        
         self.maskDetector.eval() 
         
-        classCorrect = {cls : 0 for cls in dts.classes}
         total_predictions = 0
         correct_predictions = 0
-        error_predictions = 0
+
+        NoFaceInImage = 0
+        MultifaceInImage = 0
+        
+        ClassCorrect = [0] * len(dts.classes)
+        classTotal = [0] * len(dts.classes)
 
         for i in tqdm(range(len(dts)), total = len(dts), desc = "Validation: "): 
             srcimg, label, path = dts[i]
             blobs = self.face_detector.detect(srcimg)
             boxes, scores, classids, kpts = blobs
 
-            total_predictions += 1
-            
-            predictedList = [] 
-                
+            faceCount = 0 
+
             for i in range(len(boxes)):
+                if(scores[i] < self.faceConf): 
+                    continue 
                 x1, y1, x2, y2 = boxes[i]
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                face = srcimg[y1:y2, x1:x2]
+                face = srcimg[y1:y2, x1:x2] 
+                
+                if(face.shape[0] <= 1 or face.shape[1] <= 1):
+                    continue
+                faceCount += 1
+
                 face = cv2.resize(face, (224, 224))
                 face = Image.fromarray(face)
                 face = transforms.ToTensor()(face).unsqueeze(0)
@@ -87,23 +94,26 @@ class FAS:
 
                 outputs = self.maskDetector(face)
                 _, predicted = torch.max(outputs, 1)
-
+                classTotal[label] += 1 
+                total_predictions += 1
                 if(predicted == label):
                     correct_predictions += 1
-                    predictedList.append(1)
-                else:
-                    predictedList.append(0)
+                    ClassCorrect[label] += 1
+            if(faceCount == 0): 
+                NoFaceInImage += 1
+            elif(faceCount > 1):
+                MultifaceInImage += 1
 
-            if(sum(predictedList) == len(boxes)):
-                classCorrect[dts.classes[label]] += 1
-            elif len(predictedList) == 0: 
-                error_predictions += 1
+        print("Correct predictions: " + str(correct_predictions) + " / Total predictions: " + str(total_predictions))
+        print("Mask-detector accuracy: " + str(correct_predictions / total_predictions))
+        print("No face in image: " + str(NoFaceInImage) + " Multiple faces in image: " + str(MultifaceInImage))
+        print("Face-detector accuracy:", 1 - (NoFaceInImage / len(dts)))
 
-        print("Validation done: " + str(datetime.now())) 
-        print("Correct predictions: " + str(correct_predictions) + " Total predictions: " + str(total_predictions)) 
-        print("Accuracy: " + str(correct_predictions/total_predictions)) 
-        print("Error predictions: " + str(error_predictions)) 
-        print(str(classCorrect))
+        for i in range(len(dts.classes)): 
+            print("Class: " + str(dts.idx_to_class[i]))
+            print("-->Correct: " + str(ClassCorrect[i]) + " / Total: " + str(classTotal[i]))
+            print("-->Accuracy: " + str(ClassCorrect[i]/classTotal[i]))
+            print("x----x----x")
 
     def training(self, dts):
         
@@ -111,7 +121,11 @@ class FAS:
 
         print("Starting training: " + str(timeStart)) 
 
+
         for epoch in range(self.epoch): 
+
+            classCorrect = [0] * len(dts.classes)
+            classTotal = [0] * len(dts.classes)
 
             self.maskDetector.train() 
             running_loss = 0.0
@@ -161,8 +175,10 @@ class FAS:
                     _, predicted = torch.max(outputs, 1)
 
                     total_predictions += 1
+                    classTotal[label] += 1
                     if(predicted == label):
                         correct_predictions += 1
+                        classCorrect[label] += 1
                     
                 if(faceCount == 0): 
                     NoFaceInImage += 1 
@@ -170,9 +186,16 @@ class FAS:
                     MultiFaceInImage += 1
                 
             print("Epoch: " + str(epoch) + " Loss: " + str(running_loss))
-            print("Total predictions: " + str(total_predictions) + " Correct predictions: " + str(correct_predictions))
-            print("Accuracy: " + str(correct_predictions/total_predictions))
+            print("Correct predictions: " + str(correct_predictions) + " / Total predictions: " + str(total_predictions))
+            print("Mask-detector accuracy: " + str(correct_predictions / total_predictions))
             print("No face in image: " + str(NoFaceInImage) + " Multiple faces in image: " + str(MultiFaceInImage))
+            print("Face-detector accuracy:", 1 - (NoFaceInImage / len(dts)))
+
+            for i in range(len(dts.classes)): 
+                print("Class: " + str(dts.idx_to_class[i]))
+                print("-->Correct: " + str(classCorrect[i]) + " / Total: " + str(classTotal[i]))
+                print("-->Accuracy: " + str(classCorrect[i]/classTotal[i]))
+                print("x----x----x")
             
         
         timeEnd = datetime.now()
