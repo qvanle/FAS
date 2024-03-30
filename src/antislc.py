@@ -43,6 +43,8 @@ class FAS:
         self.q = []
     
     def exportModel(self, path = "src/weights/mask_detector.pth"): 
+        if(path == "none"): 
+            path = "src/weights/mask_detector.pth"
         torch.save(self.maskDetector.state_dict(), path)
 
     def validating(self, dts): 
@@ -111,6 +113,7 @@ class FAS:
             total_predictions = 0
             
             faceFailed = 0
+            failImages = 0
 
             for i in tqdm(range(len(dts)), total = len(dts), desc = "Epoch " + str(epoch) + " "): 
                 
@@ -118,7 +121,9 @@ class FAS:
 
                 blobs = self.face_detector.detect(srcimg)
                 boxes, scores, classids, kpts = blobs
-
+                
+                if(len(boxes) == 0): 
+                    failImages += 1
     
                 #print("Found " + str(len(boxes)) + " faces")
                 for i in range(len(boxes)): 
@@ -154,6 +159,7 @@ class FAS:
                         correct_predictions += 1
             print("Epoch: " + str(epoch) + " Loss: " + str(running_loss) + " Accuracy: " + str(correct_predictions/total_predictions))
             print("Failed: " + str(faceFailed) + " faces")
+            print("Failed images: " + str(failImages))
             
         
         timeEnd = datetime.now()
