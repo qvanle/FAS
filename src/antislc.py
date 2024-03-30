@@ -20,6 +20,8 @@ import timm
 
 class FAS: 
     def __init__(self, faceDectector, maskDetector, confThreshold, nmsThreshold):  
+        
+        self.faceConf = confThreshold
 
         self.face_detector = YOLOv8_face(faceDectector, confThreshold, nmsThreshold)
         
@@ -27,7 +29,7 @@ class FAS:
         self.optimizer = None 
         self.criterion = None 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.epoch = 5
+        self.epoch = 3
 
         if maskDetector == "none": 
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
@@ -111,13 +113,14 @@ class FAS:
 
         for epoch in range(self.epoch): 
             print("Epoch: " + str(epoch)) 
+
             self.maskDetector.train() 
             running_loss = 0.0
             correct_predictions = 0 
             total_predictions = 0
             
-            faceFailed = 0
-            failImages = 0
+            NoFaceInImage = 0
+            MultiFaceInImage = 0
 
             for i in tqdm(range(len(dts)), total = len(dts), desc = "Epoch " + str(epoch) + " "): 
                 
@@ -126,23 +129,23 @@ class FAS:
                 blobs = self.face_detector.detect(srcimg)
                 boxes, scores, classids, kpts = blobs
                 
-                if(len(boxes) == 0): 
-                    failImages += 1
-    
-                #print("Found " + str(len(boxes)) + " faces")
+                faceCount = 0
+
                 for i in range(len(boxes)): 
+                    
+                    if (scores[i] < self.faceConf):
+                        continue 
+
                     x1, y1, x2, y2 = boxes[i]
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-
-                    # convert cv2 to PIL 
-                    
-                    # if face is invalid, skip 
 
                     face = srcimg[y1:y2, x1:x2]
                     
                     if(face.shape[0] <= 1 or face.shape[1] <= 1):
-                        faceFailed += 1
                         continue
+                    
+                    faceCount += 1
+
                     face = cv2.resize(face, (224, 224))
                     face = Image.fromarray(face)
                     face = transforms.ToTensor()(face).unsqueeze(0)
@@ -154,50 +157,25 @@ class FAS:
                     loss.backward()
                     self.optimizer.step()
 
-
-
+                    
                     running_loss += loss.item()
                     _, predicted = torch.max(outputs, 1)
+
                     total_predictions += 1
                     if(predicted == label):
                         correct_predictions += 1
-            print("Epoch: " + str(epoch) + " Loss: " + str(running_loss) + " Accuracy: " + str(correct_predictions/total_predictions))
-            print("Failed: " + str(faceFailed) + " faces")
-            print("Failed images: " + str(failImages))
+                    
+                if(faceCount == 0): 
+                    NoFaceInImage += 1 
+                elif(faceCount > 1):
+                    MultiFaceInImage += 1
+                
+            print("Epoch: " + str(epoch) + " Loss: " + str(running_loss))
+            print("Total predictions: " + str(total_predictions) + " Correct predictions: " + str(correct_predictions))
+            print("Accuracy: " + str(correct_predictions/total_predictions))
+            print("No face in image: " + str(NoFaceInImage) + " Multiple faces in image: " + str(MultiFaceInImage))
             
         
         timeEnd = datetime.now()
         print("Training done: " + str(timeEnd))
-        print("Time taken: " + str(timeEnd - timeStart))
-
-    def testing(self, dts):
-        timeStart = datetime.now()
-
-        print("Starting testing: " + str(timeStart))
-
-        for i in range(len(dts)): 
-            srcimg, label, path = dts[i]
-            print("--> Testing: " + path)
-
-            blobs = self.face_detector.detect(srcimg)
-            boxes, scores, classids, kpts = blobs
-            
-            for i in range(len(boxes)):
-                x1, y1, x2, y2 = boxes[i]
-                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-
-                face = srcimg[y1:y2, x1:x2]
-                face = cv2.resize(face, (224, 224))
-
-        '''
-            dstimg = self.face_detector.draw_detections(srcimg, boxes, scores, kpts)
-            winName = 'Deep learning face detection use OpenCV'
-            cv2.namedWindow(winName, 0)
-            cv2.imshow(winName, dstimg)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-        '''
-
-        timeEnd = datetime.now()
-        print("Testing done: " + str(timeEnd))
         print("Time taken: " + str(timeEnd - timeStart))

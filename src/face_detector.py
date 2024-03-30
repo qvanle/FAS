@@ -130,7 +130,6 @@ class YOLOv8_face:
             landmarks = landmarks[indices]
             return mlvl_bboxes, confidences, classIds, landmarks
         else:
-            print('nothing detect')
             return np.array([]), np.array([]), np.array([]), np.array([])
 
     def distance2bbox(self, points, distance, max_shape=None):
