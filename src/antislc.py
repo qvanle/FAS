@@ -27,7 +27,7 @@ class FAS:
         self.optimizer = None 
         self.criterion = None 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.epoch = 10
+        self.epoch = 5
 
         if maskDetector == "none": 
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
@@ -119,7 +119,7 @@ class FAS:
                 blobs = self.face_detector.detect(srcimg)
                 boxes, scores, classids, kpts = blobs
 
-
+    
                 #print("Found " + str(len(boxes)) + " faces")
                 for i in range(len(boxes)): 
                     x1, y1, x2, y2 = boxes[i]
