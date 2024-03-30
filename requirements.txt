@@ -10,3 +10,4 @@ pillow
 tensorboardX 
 scipy 
 transformers 
+timm 
