@@ -1,0 +1,12 @@
+opencv_python 
+ultralytics 
+cython 
+easydict 
+numpy 
+tqdm 
+torch 
+torchvision 
+pillow 
+tensorboardX 
+scipy 
+transformers 
