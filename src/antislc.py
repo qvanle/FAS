@@ -34,9 +34,13 @@ class FAS:
             self.maskDetector.to(self.device)
             self.optimizer = optim.Adam(self.maskDetector.parameters(), lr=3e-5)
             self.criterion = nn.CrossEntropyLoss()
+
+            self.exportModel()
         else: 
             # load from maskDetector, which is a path 
-            self.maskDetector = timm.create_model(maskDetector)
+            self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
+            state_dick = torch.load(maskDetector)
+            self.maskDetector.load_state_dict(state_dick)
             self.maskDetector.to(self.device)
             self.optimizer = optim.Adam(self.maskDetector.parameters(), lr=3e-5)
             self.criterion = nn.CrossEntropyLoss()

@@ -28,8 +28,6 @@ if __name__ == '__main__':
         train = FAS(args.face_detector, args.mask_detector, args.confThreshold, args.nmsThreshold)
         dt = slcset(args.img)
         train.training(dt)
-        print("Training done") 
-        print("Enter the path to save the model: ", end="") 
         train.exportModel(args.mask_detector)
     if (args.action == 'validate'):
         validation = FAS(args.face_detector, "none", args.confThreshold, args.nmsThreshold)
