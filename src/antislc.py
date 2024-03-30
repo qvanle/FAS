@@ -112,7 +112,6 @@ class FAS:
         print("Starting training: " + str(timeStart)) 
 
         for epoch in range(self.epoch): 
-            print("Epoch: " + str(epoch)) 
 
             self.maskDetector.train() 
             running_loss = 0.0
