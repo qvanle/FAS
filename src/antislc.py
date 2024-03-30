@@ -196,7 +196,7 @@ class FAS:
                 print("-->Correct: " + str(classCorrect[i]) + " / Total: " + str(classTotal[i]))
                 print("-->Accuracy: " + str(classCorrect[i]/classTotal[i]))
                 print("x----x----x")
-            self.export(self.maskpath)
+            self.exportModel(self.maskpath)
         
         timeEnd = datetime.now()
         print("Training done: " + str(timeEnd))
