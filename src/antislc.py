@@ -31,7 +31,7 @@ class FAS:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.epoch = 10
 
-        if maskDetector == "none": 
+        if maskDetector == "none" or (not os.path.isfile(maskDetector)): 
             print("Creating new model")
             self.maskDetector = timm.create_model("vit_base_patch16_224_dino")
             self.maskDetector.to(self.device)
