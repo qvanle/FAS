@@ -78,7 +78,8 @@ class FAS:
             for i in range(len(boxes)):
                 if(scores[i] < self.faceConf): 
                     continue 
-                x1, y1, x2, y2 = boxes[i]
+                x1, y1, w, h = boxes[i]
+                x2, y2 = x1 + w, y1 + h
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                 face = srcimg[y1:y2, x1:x2] 
@@ -149,7 +150,8 @@ class FAS:
                     if (scores[i] < self.faceConf):
                         continue 
 
-                    x1, y1, x2, y2 = boxes[i]
+                    x1, y1, w, h = boxes[i]
+                    x2, y2 = x1 + w, y1 + h
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                     face = srcimg[y1:y2, x1:x2]
